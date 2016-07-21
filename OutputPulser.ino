@@ -10,7 +10,7 @@
 /* -- Application definitions -- */
 #define APP_NAME          "OutputPulse"
 #define APP_VERSION_MAJOR 1
-#define APP_VERSION_MINOR 1
+#define APP_VERSION_MINOR 2
 #define APP_STR           APP_NAME " V" STR(APP_VERSION_MAJOR) "." STR(APP_VERSION_MINOR)
 
 /* -- Application configuration -- */
@@ -33,7 +33,8 @@
 #define PIN_LCD_D6        6
 #define PIN_LCD_D7        7
 
-#define PIN_OUTPUT        2
+#define PIN_OUTPUT        12
+#define PIN_OUTPUT_NOT    13
 
 /* -- Enums and constants -- */
 typedef uint8_t count_t;
@@ -42,8 +43,8 @@ typedef uint8_t delay_t;
 
 // Keypad constants
 #define KEYPAD_COUNT      5
-#define KEYPAD_DEBOUNCE   10
-#define KEYPAD_HOLD_TIME  1000
+#define KEYPAD_DEBOUNCE   50
+#define KEYPAD_HOLD_TIME  200
 
 typedef enum { KEY_RIGHT, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_SELECT, KEY_NONE } key_t;
 
@@ -185,7 +186,9 @@ void get_lcd_key(key_t *current_key, bool *updated) {
 void setup() {
   /* Output setup */
   pinMode(PIN_OUTPUT, OUTPUT);
+  pinMode(PIN_OUTPUT_NOT, OUTPUT);
   digitalWrite(PIN_OUTPUT, LOW);
+  digitalWrite(PIN_OUTPUT_NOT, HIGH);
   
   /* Serial setup */
   Serial.begin(SERIAL_SPEED);
@@ -266,8 +269,8 @@ void loop() {
           break;
 
         case KEY_RIGHT:
+          // Run with previous config if available
           if (setting.configValid) {
-            // Run with previous config
             currentStep = 0;
             holdTimer = millis();
             runTimer = millis();
@@ -275,10 +278,13 @@ void loop() {
             // Set initial output state
             outputState = setting.initialStep;
 
-            if (outputState)
+            if (outputState) {
               digitalWrite(PIN_OUTPUT, HIGH);
-            else
+              digitalWrite(PIN_OUTPUT_NOT, LOW);
+            } else {
               digitalWrite(PIN_OUTPUT, LOW);
+              digitalWrite(PIN_OUTPUT_NOT, HIGH);
+            }
 
             set_ui(UI_RUN);
           }
@@ -288,12 +294,14 @@ void loop() {
           // Turn output ON
           outputState = true;
           digitalWrite(PIN_OUTPUT, HIGH);
+          digitalWrite(PIN_OUTPUT_NOT, LOW);
           break;
 
         case KEY_DOWN:
           // Turn output OFF
           outputState = false;
           digitalWrite(PIN_OUTPUT, LOW);
+          digitalWrite(PIN_OUTPUT_NOT, HIGH);
           break;
         }
 
@@ -330,6 +338,7 @@ void loop() {
       if (keyChange) {
         switch (keyState) {
         case KEY_UP:
+          // Increment step count
           if (inputValue < CFG_MAX_STEP) {
             inputValue++;
             uiRedraw = true;
@@ -337,7 +346,8 @@ void loop() {
           break;
 
         case KEY_DOWN:
-          if (inputValue > 1) {
+          // Decrement step count
+          if (inputValue > 0) {
             inputValue--;
             uiRedraw = true;
           }
@@ -364,6 +374,7 @@ void loop() {
       if (keyChange || (keyState != KEY_NONE && (millis() - holdTimer)  > KEYPAD_HOLD_TIME)) {
         switch (keyState) {
         case KEY_UP:
+          // Increment step time
           if (inputValue < CFG_MAX_STEP) {
             inputValue++;
             uiRedraw = true;
@@ -371,6 +382,7 @@ void loop() {
           break;
 
         case KEY_DOWN:
+          // Decrement step time
           if (inputValue > 1) {
             inputValue--;
             uiRedraw = true;
@@ -378,6 +390,7 @@ void loop() {
           break;
 
         case KEY_LEFT:
+          // Go to next step
           // Save setting
           setting.stepDelay[currentStep] = inputValue;
 
@@ -389,6 +402,7 @@ void loop() {
           break;
 
         case KEY_RIGHT:
+          // Go to previous step
           // Save setting
           setting.stepDelay[currentStep] = inputValue;
 
@@ -430,10 +444,13 @@ void loop() {
         // Toggle output
         outputState = !outputState;
 
-        if (outputState)
+        if (outputState) {
           digitalWrite(PIN_OUTPUT, HIGH);
-        else
+          digitalWrite(PIN_OUTPUT_NOT, LOW);
+        } else {
           digitalWrite(PIN_OUTPUT, LOW);
+          digitalWrite(PIN_OUTPUT_NOT, HIGH);
+        }
 
         // Advance state
         currentStep++;
